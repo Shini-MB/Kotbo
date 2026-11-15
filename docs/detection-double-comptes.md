@@ -119,15 +119,27 @@ extrait des `MessageLog` (nécessite le logging de messages **activé** et
 
 ### 3.2 Signaux techniques ([`technicalSignals.ts`](../apps/bot/src/services/moderation/dc/technicalSignals.ts))
 
-Issus des **vérifications OAuth** (`SecurityVerification`), en comparant la
-dernière vérif de chaque compte.
+Issus des **vérifications OAuth** (`SecurityVerification`), en comparant **toutes**
+les vérifications de chaque compte (pas seulement la dernière).
 
 | Signal | Comparaison | Score |
 | --- | --- | --- |
-| `device_fingerprint` | Empreinte d'appareil identique (hash stable de `deviceInfo`) | 55 |
+| `browser_token` | Même identifiant persistant de navigateur (`browserId`, posé en `localStorage` par la page `/verify`) | 85 |
+| `device_fingerprint` (forte) | Même empreinte d'appareil sur ordinateur : rendu canvas, carte graphique (WebGL), écran, système, fuseau | 55 |
+| `device_fingerprint` (faible) | Même navigateur/système/écran, sans rendu graphique exploitable (mobile, vérifications antérieures) | 15 |
 | `shared_ip` | Adresse IP exacte partagée | 45 |
 | `ip_subnet` | Même sous-réseau (/24 IPv4, /64 IPv6) sans IP exacte | 18 |
 | `oauth_connections` | Comptes tiers liés en commun (Steam, Spotify…) | 25-50 |
+
+L'identité technique est calculée par [`deviceIdentity.ts`](../apps/bot/src/services/moderation/dc/deviceIdentity.ts).
+Une empreinte n'est **forte** que sur ordinateur avec canvas et WebGL connus : deux
+téléphones du même modèle rendent la même image, leur empreinte désigne un modèle
+et non une personne. Les empreintes fortes sont stockées dans `deviceInfo.fpHash`.
+
+**Limites** : vider le stockage du navigateur ou passer en navigation privée
+efface le `browserId` (l'empreinte et l'IP prennent alors le relais) ; les
+navigateurs qui brouillent le canvas (Brave, Firefox en mode strict) n'ont pas
+d'empreinte stable. Les VPN ne sont pas détectés.
 
 ### 3.3 Signaux vocaux ([`voiceSignals.ts`](../apps/bot/src/services/moderation/dc/voiceSignals.ts))
 
@@ -213,7 +225,8 @@ createVerificationSession()  ──►  token (valable 24h, PENDING)
         │
    completeVerification()
         ├─ mismatch d'identité  ──► FLAGGED + duplicateDetected
-        ├─ même IP / même device qu'un autre membre  ──► duplicate
+        ├─ même navigateur, même appareil ou même IP qu'un autre membre  ──► duplicate
+        │    (du plus probant au moins probant : browser_match, device_match, ip_match)
         └─ OK  ──► VERIFIED (+ rôle de vérif, retrait timeout)
 ```
 
@@ -331,6 +344,10 @@ Ce système traite des données sensibles - à garder à l'esprit :
 
 - **IP & empreinte d'appareil** : capturées uniquement à la vérification OAuth et
   **seulement** si `verificationSaveIp` / `verificationSaveDevice` sont activés.
+  L'empreinte comprend un identifiant aléatoire écrit dans le `localStorage` du
+  navigateur (`kotbo_vid`) : il est annoncé sur la page de vérification, mais il
+  est écrit dès le clic, que `verificationSaveDevice` soit activé ou non (seul
+  son enregistrement côté serveur dépend du réglage).
   Les appels de ban (ban appeals) ont leurs propres toggles (`appealSaveIp`,
   `appealSaveDevice`).
 - **Analyse comportementale** : nécessite le logging de messages **opt-in**. Sans
