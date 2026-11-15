@@ -74,6 +74,7 @@ export type DetectionReason = {
     | 'shared_ip'
     | 'ip_subnet'
     | 'device_fingerprint'
+    | 'browser_token'
     | 'oauth_connections'
     | 'voice_alternation';
   label: string;

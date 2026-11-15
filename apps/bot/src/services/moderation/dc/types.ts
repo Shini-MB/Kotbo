@@ -38,6 +38,7 @@ export type DcSignalType =
   | 'shared_ip'
   | 'ip_subnet'
   | 'device_fingerprint'
+  | 'browser_token'
   | 'oauth_connections'
   | 'cross_server_alt'
   // Modération
@@ -89,6 +90,7 @@ export const SIGNAL_FAMILY: Record<DcSignalType, SignalFamily> = {
   shared_ip: 'TECHNICAL',
   ip_subnet: 'TECHNICAL',
   device_fingerprint: 'TECHNICAL',
+  browser_token: 'TECHNICAL',
   oauth_connections: 'TECHNICAL',
   cross_server_alt: 'TECHNICAL',
 

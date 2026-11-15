@@ -1,3 +1,4 @@
+import { browserIdOf, withFingerprintHash } from './dc/deviceIdentity.js';
 import {
   type Client,
   type GuildMember,
@@ -356,6 +357,13 @@ export async function handleVerifyButtonClick(
   await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
+const DUPLICATE_METHOD_LABEL: Record<string, string> = {
+  oauth_mismatch: 'OAuth mismatch',
+  browser_match: 'même navigateur',
+  device_match: 'même appareil',
+  ip_match: 'même IP',
+};
+
 export async function completeVerification(params: {
   token: string;
   verifiedDiscordId: string;
@@ -398,7 +406,7 @@ export async function completeVerification(params: {
     saveDevice = appealConfig?.appealSaveDevice ?? true;
   }
   const ipToStore = saveIp ? ipAddress : null;
-  const deviceToStore = saveDevice ? (params.clientInfo || null) : null;
+  const deviceToStore = saveDevice ? withFingerprintHash(params.clientInfo) : null;
 
   if (verification.userId !== verifiedDiscordId) {
     const evidence = {
@@ -472,39 +480,45 @@ export async function completeVerification(params: {
     take: 5,
   }) : [];
 
-  const sameDeviceVerifications = deviceToStore ? await prisma.securityVerification.findMany({
-    where: {
-      guildId: verification.guildId,
-      deviceInfo: { equals: deviceToStore },
-      userId: { not: verifiedDiscordId },
-      status: { in: [VerificationStatus.VERIFIED, VerificationStatus.FLAGGED] },
-    },
-    take: 5,
-  }) : [];
+  const findByDeviceField = (field: 'browserId' | 'fpHash', value: unknown) =>
+    typeof value === 'string' && value
+      ? prisma.securityVerification.findMany({
+          where: {
+            guildId: verification.guildId,
+            deviceInfo: { path: [field], equals: value },
+            userId: { not: verifiedDiscordId },
+            status: { in: [VerificationStatus.VERIFIED, VerificationStatus.FLAGGED] },
+          },
+          take: 5,
+        })
+      : Promise.resolve([]);
+
+  const [sameBrowserVerifications, sameDeviceVerifications] = await Promise.all([
+    findByDeviceField('browserId', browserIdOf(deviceToStore)),
+    findByDeviceField('fpHash', deviceToStore?.fpHash),
+  ]);
 
   let duplicateDetected = false;
   let duplicateUserId: string | undefined;
   let evidence: any = null;
 
-  if (sameIpVerifications.length > 0) {
-    duplicateDetected = true;
-    duplicateUserId = sameIpVerifications[0].userId;
+  // Du plus probant au moins probant : navigateur, appareil, puis IP.
+  const match = sameBrowserVerifications.length > 0
+    ? { rows: sameBrowserVerifications, method: 'browser_match', proof: { sharedDevice: deviceToStore } }
+    : sameDeviceVerifications.length > 0
+      ? { rows: sameDeviceVerifications, method: 'device_match', proof: { sharedDevice: deviceToStore } }
+      : sameIpVerifications.length > 0
+        ? { rows: sameIpVerifications, method: 'ip_match', proof: { sharedIp: ipToStore } }
+        : null;
 
-    evidence = {
-      sharedIp: ipToStore,
-      matchedUserIds: sameIpVerifications.map(v => v.userId),
-      detectedAt: new Date().toISOString(),
-      method: 'ip_match',
-    };
-  } else if (sameDeviceVerifications.length > 0) {
+  if (match) {
     duplicateDetected = true;
-    duplicateUserId = sameDeviceVerifications[0].userId;
-
+    duplicateUserId = match.rows[0].userId;
     evidence = {
-      sharedDevice: deviceToStore,
-      matchedUserIds: sameDeviceVerifications.map(v => v.userId),
+      ...match.proof,
+      matchedUserIds: [...new Set(match.rows.map(v => v.userId))],
       detectedAt: new Date().toISOString(),
-      method: 'device_match',
+      method: match.method,
     };
   }
 
@@ -518,7 +532,7 @@ export async function completeVerification(params: {
         user2Id: duplicateUserId,
         type: LinkedAccountType.AUTOMATIC,
         status: LinkedAccountStatus.VALIDATED,
-        reason: `Détecté automatiquement via vérification de sécurité (${evidence.method === 'ip_match' ? 'même IP' : 'même appareil/navigateur'}).`,
+        reason: `Détecté automatiquement via vérification de sécurité (${DUPLICATE_METHOD_LABEL[String(evidence.method)] ?? 'même IP'}).`,
         metadata: evidence,
       });
     }
@@ -660,9 +674,11 @@ async function notifyStaffOfDuplicate(
 
   const method = evidence.method === 'oauth_mismatch'
     ? "L'utilisateur s'est authentifié avec un compte Discord différent de celui attendu."
-    : evidence.method === 'device_match'
-      ? 'Les deux comptes partagent le même appareil ou navigateur.'
-      : 'Les deux comptes partagent la même adresse IP.';
+    : evidence.method === 'browser_match'
+      ? 'Les deux comptes ont vérifié depuis le même navigateur (identifiant persistant identique).'
+      : evidence.method === 'device_match'
+        ? "Les deux comptes partagent la même empreinte d'appareil."
+        : 'Les deux comptes partagent la même adresse IP.';
 
   const embed = new EmbedBuilder()
     .setTitle(autoLinked ? '🔗 Double compte détecté et lié' : '⚠️ Double compte potentiel détecté')
@@ -715,7 +731,7 @@ async function notifyStaffOfDuplicate(
     guildId,
     kind: 'security.alt_detected',
     title: autoLinked ? '🔗 DC détecté et lié' : '⚠️ DC potentiel détecté',
-    message: `Double compte détecté : <@${userId1}> ↔ <@${userId2}> (${evidence.method === 'oauth_mismatch' ? 'OAuth mismatch' : evidence.method === 'device_match' ? 'même appareil' : 'même IP'}).`,
+    message: `Double compte détecté : <@${userId1}> ↔ <@${userId2}> (${DUPLICATE_METHOD_LABEL[String(evidence.method)] ?? 'même IP'}).`,
     severity: autoLinked ? 'SUCCESS' : 'WARNING',
     link: '/double-accounts',
     groupKey: 'security.alt_detected',
