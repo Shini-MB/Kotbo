@@ -223,7 +223,7 @@
     stylometry_match: 'behavior', ngram_match: 'behavior', activity_heatmap: 'behavior', temporal_exclusivity: 'behavior',
     cadence_match: 'behavior', daily_pattern: 'behavior', mention_network: 'behavior', never_interact: 'behavior',
     voice_alternation: 'behavior', low_activity_pair: 'behavior', role_pattern: 'behavior',
-    shared_ip: 'technical', ip_subnet: 'technical', device_fingerprint: 'technical', oauth_connections: 'technical',
+    shared_ip: 'technical', ip_subnet: 'technical', device_fingerprint: 'technical', browser_token: 'technical', oauth_connections: 'technical',
   };
 
   const SIGNAL_FAMILY_LABEL: Record<SignalFamily, () => string> = {

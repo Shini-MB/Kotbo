@@ -17709,7 +17709,7 @@
   "vfy_data_title": "Data collected during verification",
   "vfy_data_identity": "Discord identity (ID, username, avatar)",
   "vfy_data_ip": "IP address",
-  "vfy_data_device": "Technical device information (browser, system, language, screen resolution, time zone, memory, CPU cores)",
+  "vfy_data_device": "Technical device information (browser, system, language, screen resolution, time zone, memory, CPU cores, graphics rendering fingerprint) and a random identifier kept in this browser",
   "vfy_data_oauth": "Email, Discord connections and servers, if the OAuth scope includes them",
   "vfy_data_purpose": "This data is used to detect multiple accounts and secure the server. ",
   "vfy_footer": "Kotbo Security Verification",

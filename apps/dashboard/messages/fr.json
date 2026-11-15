@@ -17713,7 +17713,7 @@
   "vfy_data_title": "Données collectées lors de la vérification",
   "vfy_data_identity": "Identité Discord (identifiant, pseudo, avatar)",
   "vfy_data_ip": "Adresse IP",
-  "vfy_data_device": "Informations techniques de l'appareil (navigateur, système, langue, résolution d'écran, fuseau horaire, mémoire, cœurs CPU)",
+  "vfy_data_device": "Informations techniques de l'appareil (navigateur, système, langue, résolution d'écran, fuseau horaire, mémoire, cœurs CPU, empreinte du rendu graphique) et un identifiant aléatoire conservé dans ce navigateur",
   "vfy_data_oauth": "E-mail, connexions et serveurs Discord, si le champ d'autorisation OAuth les inclut",
   "vfy_data_purpose": "Ces données servent à détecter les comptes multiples (DCA) et sécuriser le serveur. ",
   "vfy_footer": "Vérification de sécurité Kotbo",

@@ -85,6 +85,58 @@
     }
   }
 
+  const BROWSER_ID_KEY = 'kotbo_vid';
+
+  /** Identifiant aléatoire gardé par ce navigateur : deux comptes vérifiés ici le partagent. */
+  function persistentBrowserId(): string | null {
+    try {
+      let id = localStorage.getItem(BROWSER_ID_KEY);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(BROWSER_ID_KEY, id);
+      }
+      return id;
+    } catch {
+      return null; // navigation privée stricte ou stockage bloqué
+    }
+  }
+
+  /** Hash du rendu d'un dessin : il varie avec la carte graphique, les polices et le système. */
+  function canvasFingerprint(): string | null {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 240;
+      canvas.height = 60;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.textBaseline = 'top';
+      ctx.font = "16px 'Arial'";
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(100, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('Kotbo ✓ 1337 🦊', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('Kotbo ✓ 1337 🦊', 4, 17);
+      const data = canvas.toDataURL();
+      let hash = 0x811c9dc5; // FNV-1a
+      for (let i = 0; i < data.length; i++) hash = Math.imul(hash ^ data.charCodeAt(i), 0x01000193);
+      return (hash >>> 0).toString(16);
+    } catch {
+      return null;
+    }
+  }
+
+  function webglRenderer(): string | null {
+    try {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+      if (!gl || !ext) return null;
+      return `${gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)}~${gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)}`;
+    } catch {
+      return null;
+    }
+  }
+
   function startOAuth() {
     verifying = true;
     
@@ -98,6 +150,12 @@
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'inconnu',
         deviceMemory: (navigator as any).deviceMemory || null,
         hardwareConcurrency: navigator.hardwareConcurrency || null,
+        colorDepth: window.screen.colorDepth,
+        pixelRatio: window.devicePixelRatio,
+        maxTouchPoints: navigator.maxTouchPoints,
+        canvas: canvasFingerprint(),
+        webgl: webglRenderer(),
+        browserId: persistentBrowserId(),
       };
     } catch (e) {
       console.error('Failed to collect hardware/software info:', e);
